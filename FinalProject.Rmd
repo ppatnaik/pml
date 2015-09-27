@@ -75,7 +75,7 @@ fancyRpartPlot(myFit, sub = "Classification Tree")
 myPred <- predict(myFit, myTestData, type = "class")
 confusionMatrix(myPred, myTestData$classe)
 ```
-The accuracy is approximately 72%, thus the prediction accuracy for out of sample error is 28%
+The accuracy is not very good, it less than 80%.
 
 ### Fitting model using Random Forests method
 ```{r message=FALSE, cache=TRUE}
@@ -87,7 +87,7 @@ fit2$finalModel
 preds2 <- predict(fit2, newdata=myTestData)
 confusionMatrix(myTestData$classe, preds2)
 ```
-The accuracy is 99.61%, hence I will use this to train the full set.
+The accuracy is 99.61%, hence I will use this to train the full set. The prediction accuracy for out of sample error is 0.39%.
 
 ### Using the full training dataset with Random Forests method
 ```{r message=FALSE, cache=TRUE}
