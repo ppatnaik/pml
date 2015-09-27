@@ -1,0 +1,115 @@
+---
+title: 'Course Project: PML'
+date: "September 27, 2015"
+output: html_document
+---
+## Introduction
+In this project, the goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. The participants were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har
+
+Reference to the paper on this dataset: Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013
+
+Read more: http://groupware.les.inf.puc-rio.br/har#weight_lifting_exercises#ixzz3mv0Vy4KT
+
+## Data
+```{r cache=TRUE}
+# Load train data
+trainURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+trainData <- read.csv(url(trainURL), na.strings=c("NA","#DIV/0!",""))
+dim(trainData)
+# Load test data
+testURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+testData <- read.csv(url(testURL), na.strings=c("NA","#DIV/0!",""))
+dim(testData)
+```
+
+## Preparing the dataset
+As we can see above, there are 160 variables. Our next step is clean the dataset, remove variable with NA's and correlated variables.
+```{r, echo=FALSE}
+na_counts <- sapply(trainData, function(y) sum(length(which(is.na(y)))))
+goodVars <- names(na_counts[na_counts==0])
+trainData <- trainData[goodVars]
+
+# Remove first 7 vars as they are related to the participants
+goodVars <- goodVars[-(1:7)]
+trainData <- trainData[goodVars]
+```
+
+#### Remove correlated variables
+```{r message=FALSE}
+require(caret)
+rm_cols <- findCorrelation(x=cor(trainData[,-53]), cutoff = .9, verbose = F)
+goodVars <- goodVars[-rm_cols]
+trainData <- trainData[goodVars]
+dim(trainData)
+```
+
+#### Final set of variables
+```{r}
+colNames <- colnames(trainData[,-46])
+colNames
+#names(testData)
+testData <- testData[colNames];dim(testData)
+```
+
+## Training data for Prediction
+Before we using the full training dataset, we will partition the training set to evalate the accuracy & errors.
+
+### Partioning the training data
+```{r}
+inTrain <- createDataPartition(y=trainData$classe, p=.75, list=FALSE)
+myTrainData <- trainData[inTrain,]; dim(myTrainData)
+myTestData <- trainData[-inTrain,]; dim(myTestData)
+```
+
+## Model Selection
+### Fitting the model using decision tree method
+```{r message=FALSE}
+require(rpart)
+require(rpart.plot)
+require(RColorBrewer)
+require(rattle)
+
+set.seed(2015)
+myFit <- rpart(classe ~ ., data=myTrainData, method="class")
+fancyRpartPlot(myFit, sub = "Classification Tree")
+myPred <- predict(myFit, myTestData, type = "class")
+confusionMatrix(myPred, myTestData$classe)
+```
+The accuracy is approximately 72%, thus the prediction accuracy for out of sample error is 28%
+
+### Fitting model using Random Forests method
+```{r message=FALSE, cache=TRUE}
+library(caret)
+# Train using 3-fold cross validation
+fit2Control <- trainControl(method="cv", number=3, verboseIter=F)
+fit2 <- train(classe ~ ., data=myTrainData, method="rf", trControl=fit2Control)
+fit2$finalModel
+preds2 <- predict(fit2, newdata=myTestData)
+confusionMatrix(myTestData$classe, preds2)
+```
+The accuracy is 99.61%, hence I will use this to train the full set.
+
+### Using the full training dataset with Random Forests method
+```{r message=FALSE, cache=TRUE}
+# Train using 3-fold cross validation
+fit3Control <- trainControl(method="cv", number=3, verboseIter=F)
+fit3 <- train(classe ~ ., data=trainData, method="rf", trControl=fit3Control)
+fit3$finalModel
+preds3 <- predict(fit3, newdata=testData)
+```
+
+### Create files for submission
+```{r}
+preds_out <- as.character(preds3)
+
+pml_write_files <- function(x) {
+    n <- length(x)
+    for(i in 1:n) {
+        filename <- paste0("problem_id_", i, ".txt")
+        write.table(x[i], file=filename, quote=F, row.names=F, col.names=F)
+    }
+}
+
+pml_write_files(preds_out)
+```
+
